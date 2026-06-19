@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesh Gradient Generator | Coded by Alejandro</title>
+    <style>
+        :root {
+            --bg: #0f0f0f;
+            --panel: #1a1a1a;
+            --border: #333;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --text: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ========== LAYOUT ========== */
+        .sidebar {
+            width: 350px;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .preview-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background-image: radial-gradient(#333 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .canvas-container {
+            width: 600px;
+            height: 600px;
+            border: 1px solid var(--border);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            background: #fff;
+        }
+
+        canvas { width: 100%; height: 100%; display: block; }
+
+        /* ========== CONTROLES ========== */
+        h1 {
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        input[type="text"], input[type="range"] {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        input[type="text"]:focus { border-color: var(--accent); }
+
+        .row-between {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* ========== COLOR SWATCHES ========== */
+        .colors-container {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .color-swatch {
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .color-swatch:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 2px var(--accent);
+        }
+
+        .color-swatch.active {
+            box-shadow: 0 0 0 2px var(--accent);
+        }
+
+        .color-swatch .swatch-delete {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 16px;
+            height: 16px;
+            background: #ef4444;
+            border: none;
+            border-radius: 50%;
+            color: #fff;
+            font-size: 10px;
+            line-height: 1;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.15s;
+            padding: 0;
+            flex: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .color-swatch:hover .swatch-delete { opacity: 1; }
+
+        /* ========== COLOR PICKER POPOVER ========== */
+        .color-picker-popover {
+            position: absolute;
+            z-index: 100;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+            display: none;
+            width: 224px;
+        }
+
+        .color-picker-popover.open { display: block; }
+
+        .cp-sv-area {
+            width: 200px;
+            height: 160px;
+            border-radius: 4px;
+            cursor: crosshair;
+            position: relative;
+            margin-bottom: 8px;
+        }
+
+        .cp-sv-area canvas { border-radius: 4px; }
+
+        .cp-sv-cursor {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.3);
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+        }
+
+        .cp-hue-bar {
+            width: 200px;
+            height: 14px;
+            border-radius: 7px;
+            cursor: pointer;
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .cp-hue-bar canvas { border-radius: 7px; }
+
+        .cp-hue-cursor {
+            position: absolute;
+            top: -1px;
+            width: 6px;
+            height: 16px;
+            background: #fff;
+            border-radius: 3px;
+            box-shadow: 0 0 3px rgba(0,0,0,0.5);
+            pointer-events: none;
+            transform: translateX(-50%);
+        }
+
+        .cp-hex-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cp-preview {
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .cp-hex-input {
+            flex: 1;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            outline: none;
+            text-transform: uppercase;
+        }
+
+        .cp-hex-input:focus { border-color: var(--accent); }
+
+        /* ========== BOTONES ========== */
+        .button-group { display: flex; gap: 10px; }
+
+        button {
+            background: var(--border);
+            color: var(--text);
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+            flex: 1;
+        }
+
+        button:hover { background: #444; }
+        button.primary { background: var(--accent); }
+        button.primary:hover { background: var(--accent-hover); }
+
+        .btn-small {
+            padding: 2px 8px;
+            font-size: 12px;
+            flex: none;
+        }
+
+        /* ========== HISTORIAL ========== */
+        .history-grid {
+            display: flex;
+            gap: 8px;
+        }
+
+        .history-item {
+            width: 90px;
+            height: 90px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            flex-shrink: 0;
+        }
+
+        .history-item:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 2px var(--accent);
+        }
+
+        .history-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .history-empty {
+            width: 90px;
+            height: 90px;
+            border-radius: 6px;
+            border: 1px dashed var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            flex-shrink: 0;
+            user-select: none;
+        }
+
+        /* ========== BOTÓN DESCARGA FLOTANTE ========== */
+        .btn-download-float {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(37, 99, 235, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s, transform 0.15s;
+            flex: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        .btn-download-float:hover {
+            background: rgba(29, 78, 216, 0.95);
+            transform: translateY(-1px);
+        }
+
+        .btn-download-float svg { width: 18px; height: 18px; }
+
+        /* ========== RESPONSIVE: 1920×1080 → 1800×900 ========== */
+        @media (max-width: 1800px), (max-height: 900px) {
+            .sidebar {
+                width: 300px;
+                padding: 18px;
+                gap: 14px;
+            }
+
+            h1 {
+                font-size: 1.05rem;
+                margin-bottom: 6px;
+                padding-bottom: 6px;
+            }
+
+            label { font-size: 0.8rem; }
+
+            .canvas-container {
+                width: 480px;
+                height: 480px;
+            }
+
+            .color-swatch {
+                width: 34px;
+                height: 34px;
+            }
+
+            .history-item, .history-empty {
+                width: 70px;
+                height: 70px;
+            }
+
+            input[type="text"] { padding: 7px; }
+            button { padding: 7px 10px; font-size: 0.85rem; }
+            .control-group { gap: 5px; }
+
+            .btn-download-float {
+                padding: 10px 16px;
+                font-size: 0.85rem;
+                bottom: 18px;
+                right: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <h1>Mesh Generator</h1>
+
+        <!-- Semilla -->
+        <div class="control-group">
+            <div class="row-between">
+                <label>Semilla (Seed)</label>
+                <button class="btn-small" id="btn-random-seed">Aleatoria</button>
+            </div>
+            <input type="text" id="input-seed" value="AERKO2026">
+        </div>
+
+        <!-- Paleta de Colores -->
+        <div class="control-group" style="position: relative;">
+            <div class="row-between">
+                <label>Colores (Min 2, Max 5)</label>
+                <button class="btn-small" id="btn-random-colors">Aleatorios</button>
+            </div>
+            <div class="colors-container" id="colors-container"></div>
+            <div class="button-group">
+                <button id="btn-add-color">+ Añadir</button>
+            </div>
+            <!-- Color Picker Popover -->
+            <div class="color-picker-popover" id="color-picker">
+                <div class="cp-sv-area" id="cp-sv-area">
+                    <canvas id="cp-sv-canvas" width="200" height="160"></canvas>
+                    <div class="cp-sv-cursor" id="cp-sv-cursor"></div>
+                </div>
+                <div class="cp-hue-bar" id="cp-hue-bar">
+                    <canvas id="cp-hue-canvas" width="200" height="14"></canvas>
+                    <div class="cp-hue-cursor" id="cp-hue-cursor"></div>
+                </div>
+                <div class="cp-hex-row">
+                    <div class="cp-preview" id="cp-preview"></div>
+                    <input type="text" class="cp-hex-input" id="cp-hex-input" maxlength="7" placeholder="#FF00FF">
+                </div>
+            </div>
+        </div>
+
+        <!-- Sliders -->
+        <div class="control-group">
+            <label>Complejidad: <span id="val-complexity">6</span></label>
+            <input type="range" id="slider-complexity" min="3" max="15" value="6">
+        </div>
+
+        <div class="control-group">
+            <label>Desenfoque (Blur): <span id="val-blur">120</span>px</label>
+            <input type="range" id="slider-blur" min="0" max="250" value="120">
+        </div>
+
+        <div class="control-group">
+            <label>Ruido (Noise): <span id="val-noise">15</span>%</label>
+            <input type="range" id="slider-noise" min="0" max="50" value="15">
+        </div>
+
+        <!-- Historial -->
+        <div class="control-group" style="margin-top: auto;">
+            <label>Historial</label>
+            <div class="history-grid" id="history-grid"></div>
+        </div>
+    </aside>
+
+    <main class="preview-area">
+        <div class="canvas-container">
+            <canvas id="meshCanvas" width="600" height="600"></canvas>
+        </div>
+        <button class="btn-download-float" id="btn-download">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Descargar PNG
+        </button>
+    </main>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ==================== ESTADO ====================
+        const meshCanvas = document.getElementById('meshCanvas');
+        const meshCtx = meshCanvas.getContext('2d', { willReadFrequently: true });
+
+        const MAX_COLORS = 5;
+        const MIN_COLORS = 2;
+        const MAX_HISTORY = 3;
+        const DEFAULT_COLORS = ['#ff0080', '#7928ca', '#00d2ff'];
+        const HISTORY_DEBOUNCE_MS = 500;
+
+        let colors = loadColors();
+        let historyEntries = [];
+        let historyTimer = null;
+        // Flag para evitar capturar al historial cuando restauramos desde él
+        let suppressHistory = false;
+
+        // ==================== LOCALSTORAGE ====================
+        function saveColors() {
+            localStorage.setItem('mesh_colors', JSON.stringify(colors));
+        }
+
+        function loadColors() {
+            try {
+                const stored = localStorage.getItem('mesh_colors');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (Array.isArray(parsed) && parsed.length >= MIN_COLORS && parsed.length <= MAX_COLORS) {
+                        return parsed;
+                    }
+                }
+            } catch (_) {}
+            return [...DEFAULT_COLORS];
+        }
+
+        // ==================== PRNG CON SEMILLA ====================
+        function xmur3(str) {
+            let h = 1779033703 ^ str.length;
+            for (let i = 0; i < str.length; i++) {
+                h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+                h = h << 13 | h >>> 19;
+            }
+            return function() {
+                h = Math.imul(h ^ (h >>> 16), 2246822507);
+                h = Math.imul(h ^ (h >>> 13), 3266489909);
+                return (h ^= h >>> 16) >>> 0;
+            };
+        }
+
+        function mulberry32(a) {
+            return function() {
+                let t = a += 0x6D2B79F5;
+                t = Math.imul(t ^ t >>> 15, t | 1);
+                t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            };
+        }
+
+        // ==================== MOTOR DE DIBUJO ====================
+        function renderMesh() {
+            const seedText = document.getElementById('input-seed').value;
+            const complexity = parseInt(document.getElementById('slider-complexity').value);
+            const blurAmount = parseInt(document.getElementById('slider-blur').value);
+            const noiseAmount = parseInt(document.getElementById('slider-noise').value) / 100;
+
+            const seedGen = xmur3(seedText);
+            const rand = mulberry32(seedGen());
+
+            meshCtx.filter = 'none';
+            meshCtx.clearRect(0, 0, 600, 600);
+
+            meshCtx.fillStyle = colors[0];
+            meshCtx.fillRect(0, 0, 600, 600);
+
+            meshCtx.filter = `blur(${blurAmount}px)`;
+
+            for (let i = 0; i < complexity; i++) {
+                const x = rand() * 800 - 100;
+                const y = rand() * 800 - 100;
+                const radius = rand() * 350 + 100;
+                const colorIndex = Math.floor(rand() * colors.length);
+
+                meshCtx.beginPath();
+                meshCtx.arc(x, y, radius, 0, Math.PI * 2);
+                meshCtx.fillStyle = colors[colorIndex];
+                meshCtx.fill();
+            }
+
+            if (noiseAmount > 0) {
+                meshCtx.filter = 'none';
+                const imgData = meshCtx.getImageData(0, 0, 600, 600);
+                const data = imgData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const noise = (rand() - 0.5) * 255 * noiseAmount;
+                    data[i]     += noise;
+                    data[i + 1] += noise;
+                    data[i + 2] += noise;
+                }
+                meshCtx.putImageData(imgData, 0, 0);
+            }
+        }
+
+        // Punto central: genera el mesh y agenda captura al historial
+        function generate() {
+            renderMesh();
+            if (!suppressHistory) {
+                clearTimeout(historyTimer);
+                historyTimer = setTimeout(captureHistory, HISTORY_DEBOUNCE_MS);
+            }
+        }
+
+        // ==================== HISTORIAL ====================
+        function captureHistory() {
+            historyEntries.unshift({
+                thumbnail: meshCanvas.toDataURL('image/png', 0.4),
+                seed: document.getElementById('input-seed').value,
+                colors: [...colors],
+                complexity: document.getElementById('slider-complexity').value,
+                blur: document.getElementById('slider-blur').value,
+                noise: document.getElementById('slider-noise').value
+            });
+
+            if (historyEntries.length > MAX_HISTORY) historyEntries.length = MAX_HISTORY;
+            renderHistoryUI();
+        }
+
+        function restoreHistory(index) {
+            const entry = historyEntries[index];
+            if (!entry) return;
+
+            closePicker();
+            suppressHistory = true;
+
+            document.getElementById('input-seed').value = entry.seed;
+            colors = [...entry.colors];
+            document.getElementById('slider-complexity').value = entry.complexity;
+            document.getElementById('slider-blur').value = entry.blur;
+            document.getElementById('slider-noise').value = entry.noise;
+            document.getElementById('val-complexity').innerText = entry.complexity;
+            document.getElementById('val-blur').innerText = entry.blur;
+            document.getElementById('val-noise').innerText = entry.noise;
+
+            saveColors();
+            renderSwatches();
+            renderMesh();
+
+            suppressHistory = false;
+        }
+
+        function renderHistoryUI() {
+            const grid = document.getElementById('history-grid');
+            grid.innerHTML = '';
+
+            for (let i = 0; i < MAX_HISTORY; i++) {
+                if (historyEntries[i]) {
+                    const item = document.createElement('div');
+                    item.className = 'history-item';
+                    const img = document.createElement('img');
+                    img.src = historyEntries[i].thumbnail;
+                    img.alt = 'Generación ' + (i + 1);
+                    item.appendChild(img);
+                    const idx = i;
+                    item.addEventListener('click', function() { restoreHistory(idx); });
+                    grid.appendChild(item);
+                } else {
+                    const empty = document.createElement('div');
+                    empty.className = 'history-empty';
+                    empty.textContent = 'Vacío';
+                    grid.appendChild(empty);
+                }
+            }
+        }
+
+        // ==================== COLOR PICKER ====================
+        const pickerEl = document.getElementById('color-picker');
+        const svCanvas = document.getElementById('cp-sv-canvas');
+        const svCtx = svCanvas.getContext('2d', { willReadFrequently: true });
+        const svCursor = document.getElementById('cp-sv-cursor');
+        const hueCanvas = document.getElementById('cp-hue-canvas');
+        const hueCtx = hueCanvas.getContext('2d');
+        const hueCursor = document.getElementById('cp-hue-cursor');
+        const previewEl = document.getElementById('cp-preview');
+        const hexInput = document.getElementById('cp-hex-input');
+
+        let pickerIndex = -1;
+        let pickerHue = 0;
+        let pickerSat = 1;
+        let pickerVal = 1;
+        let draggingSV = false;
+        let draggingHue = false;
+
+        // --- Conversiones HSV ↔ RGB ↔ HEX ---
+        function hsvToRgb(h, s, v) {
+            const i = Math.floor(h / 60) % 6;
+            const f = h / 60 - Math.floor(h / 60);
+            const p = v * (1 - s);
+            const q = v * (1 - f * s);
+            const t = v * (1 - (1 - f) * s);
+            let r, g, b;
+            switch (i) {
+                case 0: r = v; g = t; b = p; break;
+                case 1: r = q; g = v; b = p; break;
+                case 2: r = p; g = v; b = t; break;
+                case 3: r = p; g = q; b = v; break;
+                case 4: r = t; g = p; b = v; break;
+                case 5: r = v; g = p; b = q; break;
+            }
+            return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+        }
+
+        function rgbToHsv(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            const d = max - min;
+            let h = 0, s = max === 0 ? 0 : d / max;
+            if (d !== 0) {
+                switch (max) {
+                    case r: h = ((g - b) / d + (g < b ? 6 : 0)) * 60; break;
+                    case g: h = ((b - r) / d + 2) * 60; break;
+                    case b: h = ((r - g) / d + 4) * 60; break;
+                }
+            }
+            return [h, s, max];
+        }
+
+        function rgbToHex(r, g, b) {
+            return '#' + [r, g, b].map(function(c) { return c.toString(16).padStart(2, '0'); }).join('');
+        }
+
+        function hexToRgb(hex) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+            const n = parseInt(hex, 16);
+            return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+        }
+
+        // --- Dibujo del Picker ---
+        function drawHueBar() {
+            const w = hueCanvas.width, h = hueCanvas.height;
+            const grad = hueCtx.createLinearGradient(0, 0, w, 0);
+            for (let i = 0; i <= 6; i++) {
+                const rgb = hsvToRgb(i * 60, 1, 1);
+                grad.addColorStop(i / 6, 'rgb(' + rgb.join(',') + ')');
+            }
+            hueCtx.fillStyle = grad;
+            hueCtx.fillRect(0, 0, w, h);
+        }
+
+        function drawSvArea() {
+            const w = svCanvas.width, h = svCanvas.height;
+            const rgb = hsvToRgb(pickerHue, 1, 1);
+
+            // Gradiente horizontal: blanco → color puro
+            const hGrad = svCtx.createLinearGradient(0, 0, w, 0);
+            hGrad.addColorStop(0, '#ffffff');
+            hGrad.addColorStop(1, 'rgb(' + rgb.join(',') + ')');
+            svCtx.fillStyle = hGrad;
+            svCtx.fillRect(0, 0, w, h);
+
+            // Gradiente vertical: transparente → negro
+            const vGrad = svCtx.createLinearGradient(0, 0, 0, h);
+            vGrad.addColorStop(0, 'rgba(0,0,0,0)');
+            vGrad.addColorStop(1, '#000000');
+            svCtx.fillStyle = vGrad;
+            svCtx.fillRect(0, 0, w, h);
+        }
+
+        function syncPickerUI() {
+            // Cursor SV
+            svCursor.style.left = (pickerSat * svCanvas.width) + 'px';
+            svCursor.style.top = ((1 - pickerVal) * svCanvas.height) + 'px';
+
+            // Cursor Hue
+            hueCursor.style.left = ((pickerHue / 360) * hueCanvas.width) + 'px';
+
+            // Preview + hex
+            const rgb = hsvToRgb(pickerHue, pickerSat, pickerVal);
+            const hex = rgbToHex(rgb[0], rgb[1], rgb[2]);
+            previewEl.style.background = hex;
+            hexInput.value = hex.toUpperCase();
+
+            // Aplicar al color activo
+            if (pickerIndex >= 0 && pickerIndex < colors.length) {
+                colors[pickerIndex] = hex;
+                saveColors();
+                // Actualizar swatch sin re-render completo
+                const swatch = document.querySelectorAll('.color-swatch')[pickerIndex];
+                if (swatch) swatch.style.background = hex;
+                generate();
+            }
+        }
+
+        // --- Interacciones del Picker ---
+        function onSvInteract(e) {
+            const rect = svCanvas.getBoundingClientRect();
+            const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+            const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+            pickerSat = x / rect.width;
+            pickerVal = 1 - y / rect.height;
+            syncPickerUI();
+        }
+
+        function onHueInteract(e) {
+            const rect = hueCanvas.getBoundingClientRect();
+            const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+            pickerHue = (x / rect.width) * 360;
+            drawSvArea();
+            syncPickerUI();
+        }
+
+        document.getElementById('cp-sv-area').addEventListener('pointerdown', function(e) {
+            draggingSV = true;
+            onSvInteract(e);
+            e.preventDefault();
+        });
+
+        document.getElementById('cp-hue-bar').addEventListener('pointerdown', function(e) {
+            draggingHue = true;
+            onHueInteract(e);
+            e.preventDefault();
+        });
+
+        document.addEventListener('pointermove', function(e) {
+            if (draggingSV) onSvInteract(e);
+            if (draggingHue) onHueInteract(e);
+        });
+
+        document.addEventListener('pointerup', function() {
+            draggingSV = false;
+            draggingHue = false;
+        });
+
+        hexInput.addEventListener('input', function() {
+            let val = hexInput.value.trim();
+            if (!val.startsWith('#')) val = '#' + val;
+            if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+                const rgb = hexToRgb(val);
+                const hsv = rgbToHsv(rgb[0], rgb[1], rgb[2]);
+                pickerHue = hsv[0];
+                pickerSat = hsv[1];
+                pickerVal = hsv[2];
+                drawSvArea();
+                syncPickerUI();
+            }
+        });
+
+        function openPicker(index) {
+            pickerIndex = index;
+            const rgb = hexToRgb(colors[index]);
+            const hsv = rgbToHsv(rgb[0], rgb[1], rgb[2]);
+            pickerHue = hsv[0];
+            pickerSat = hsv[1];
+            pickerVal = hsv[2];
+
+            document.querySelectorAll('.color-swatch').forEach(function(sw, i) {
+                sw.classList.toggle('active', i === index);
+            });
+
+            drawHueBar();
+            drawSvArea();
+            pickerEl.classList.add('open');
+            syncPickerUI();
+        }
+
+        function closePicker() {
+            pickerEl.classList.remove('open');
+            pickerIndex = -1;
+            document.querySelectorAll('.color-swatch').forEach(function(sw) {
+                sw.classList.remove('active');
+            });
+        }
+
+        // Cerrar picker al click fuera
+        document.addEventListener('pointerdown', function(e) {
+            if (!pickerEl.classList.contains('open')) return;
+            if (pickerEl.contains(e.target)) return;
+            if (e.target.closest('.color-swatch') && !e.target.closest('.swatch-delete')) return;
+            closePicker();
+        });
+
+        // ==================== SWATCHES UI ====================
+        function renderSwatches() {
+            const container = document.getElementById('colors-container');
+            container.innerHTML = '';
+
+            colors.forEach(function(col, index) {
+                const swatch = document.createElement('div');
+                swatch.className = 'color-swatch';
+                swatch.style.background = col;
+
+                // Botón borrar individual (solo si hay más del mínimo)
+                if (colors.length > MIN_COLORS) {
+                    const del = document.createElement('button');
+                    del.className = 'swatch-delete';
+                    del.textContent = '×';
+                    del.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        if (pickerIndex === index) closePicker();
+                        else if (pickerIndex > index) pickerIndex--;
+                        colors.splice(index, 1);
+                        saveColors();
+                        renderSwatches();
+                        generate();
+                    });
+                    swatch.appendChild(del);
+                }
+
+                swatch.addEventListener('click', function() {
+                    if (pickerIndex === index) closePicker();
+                    else openPicker(index);
+                });
+
+                container.appendChild(swatch);
+            });
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        // Sliders y semilla
+        ['input-seed', 'slider-complexity', 'slider-blur', 'slider-noise'].forEach(function(id) {
+            document.getElementById(id).addEventListener('input', function() {
+                if (id.startsWith('slider')) {
+                    document.getElementById(id.replace('slider-', 'val-')).innerText = this.value;
+                }
+                generate();
+            });
+        });
+
+        // Añadir color
+        document.getElementById('btn-add-color').addEventListener('click', function() {
+            if (colors.length < MAX_COLORS) {
+                colors.push('#ffffff');
+                saveColors();
+                renderSwatches();
+                generate();
+            }
+        });
+
+        // Colores aleatorios
+        document.getElementById('btn-random-colors').addEventListener('click', function() {
+            closePicker();
+            colors = colors.map(function() {
+                return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+            });
+            saveColors();
+            renderSwatches();
+            generate();
+        });
+
+        // Semilla aleatoria
+        document.getElementById('btn-random-seed').addEventListener('click', function() {
+            document.getElementById('input-seed').value = Math.random().toString(36).substring(2, 8).toUpperCase();
+            generate();
+        });
+
+        // Descargar
+        document.getElementById('btn-download').addEventListener('click', function() {
+            const link = document.createElement('a');
+            link.download = 'mesh_' + document.getElementById('input-seed').value + '.png';
+            link.href = meshCanvas.toDataURL('image/png');
+            link.click();
+        });
+
+        // ==================== INICIALIZACIÓN ====================
+        renderSwatches();
+        renderHistoryUI();
+        renderMesh();
+        captureHistory();
+
+    })();
+    </script>
+</body>
+</html>
